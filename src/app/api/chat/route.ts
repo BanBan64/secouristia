@@ -111,10 +111,9 @@ async function searchDocuments(query: string, originalQuery: string, sourceFilte
     console.log("Source filter:", sourceFilter || "all");
 
     // Extraire les mots-clés des DEUX requêtes
-    const allKeywords = [...new Set([
-      ...query.toLowerCase().split(/\s+/).filter(w => w.length > 2),
-      ...originalQuery.toLowerCase().split(/\s+/).filter(w => w.length > 2)
-    ])];
+    const queryWords = query.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+    const originalWords = originalQuery.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+    const allKeywords = Array.from(new Set([...queryWords, ...originalWords]));
 
     console.log("Mots-clés combinés:", allKeywords);
 
