@@ -34,12 +34,18 @@ body {
   @apply rounded-lg p-4 my-4 border-l-4;
   columns: 1 !important;
   column-count: 1 !important;
+  display: block !important;
+  width: 100% !important;
 }
 
-.action-block * {
+.action-block,
+.action-block *,
+.prose .action-block,
+.prose .action-block * {
   columns: 1 !important;
   column-count: 1 !important;
-  break-inside: avoid;
+  break-inside: avoid !important;
+  column-span: none !important;
 }
 
 .action-block-do {
@@ -75,16 +81,48 @@ body {
 }
 
 /* Liste à puces dans les blocs */
-.action-block ul {
+.action-block ul,
+.prose .action-block ul {
   @apply list-none pl-0 space-y-2 m-0;
+  display: block !important;
+  width: 100% !important;
 }
 
-.action-block li {
-  @apply flex items-start gap-2 text-sm leading-relaxed;
+.action-block li,
+.prose .action-block li {
+  @apply text-sm leading-relaxed;
+  display: block !important;
+  width: 100% !important;
+  padding-left: 1.5rem;
+  position: relative;
+  margin-bottom: 0.5rem;
 }
 
 .action-block li::before {
-  @apply flex-shrink-0 mt-0.5;
+  position: absolute;
+  left: 0;
+  top: 0;
+}
+
+/* Listes imbriquées */
+.action-block ul ul,
+.prose .action-block ul ul {
+  @apply mt-2 ml-4 space-y-1;
+  display: block !important;
+  width: 100% !important;
+  padding-left: 0.5rem;
+}
+
+.action-block ul ul li,
+.prose .action-block ul ul li {
+  @apply text-sm;
+  padding-left: 1.25rem;
+  margin-bottom: 0.25rem;
+}
+
+/* Contenu inline après ":" */
+.action-block li > ul {
+  margin-top: 0.5rem !important;
 }
 
 .action-block-do li::before {
@@ -216,4 +254,22 @@ body {
 
 .dark-mode-toggle-circle {
   @apply inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm;
+}
+
+/* Override prose styles pour éviter les colonnes */
+.prose ul,
+.prose ol {
+  columns: 1 !important;
+  column-count: 1 !important;
+}
+
+.prose .action-block {
+  max-width: 100% !important;
+}
+
+/* Forcer le display block sur tout le contenu des blocs */
+.action-block p + ul,
+.action-block strong + ul {
+  display: block !important;
+  margin-top: 0.5rem;
 }
