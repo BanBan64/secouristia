@@ -300,7 +300,7 @@ export async function POST(request: NextRequest) {
       message.content[0].type === "text" ? message.content[0].text : "";
 
     // Retourner la réponse avec les sources utilisées
-    const sources = [...new Set(documents.map((d) => d.source))];
+    const sources = Array.from(new Set(documents.map((d) => d.source)));
 
     return NextResponse.json({
       response,
