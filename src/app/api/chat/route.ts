@@ -261,9 +261,14 @@ function buildContextFromDocuments(documents: DocumentMatch[]): string {
   return `Voici les extraits pertinents des référentiels de secourisme :\n\n${context}`;
 }
 
+interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
 export async function POST(request: NextRequest) {
   try {
-    const { question, sourceFilter } = await request.json();
+    const { question, sourceFilter, conversationHistory } = await request.json();
 
     if (!question || typeof question !== "string") {
       return NextResponse.json(
@@ -271,6 +276,9 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    // Récupérer l'historique (max 6 derniers messages pour limiter les tokens)
+    const history: ChatMessage[] = (conversationHistory || []).slice(-6);
 
     // 1. Reformuler la question en termes techniques pour la recherche
     const technicalQuery = await reformulateQuery(question);
@@ -281,19 +289,29 @@ export async function POST(request: NextRequest) {
     // Construire le contexte
     const context = buildContextFromDocuments(documents);
 
-    // 3. Construire le message avec la question ORIGINALE (pas reformulée)
+    // 3. Construire les messages avec l'historique
+    const messages: { role: "user" | "assistant"; content: string }[] = [];
+
+    // Ajouter l'historique de conversation
+    for (const msg of history) {
+      messages.push({
+        role: msg.role,
+        content: msg.content,
+      });
+    }
+
+    // Ajouter la nouvelle question avec le contexte RAG
     const userMessage = `${context}\n\n---\n\nQuestion de l'utilisateur : ${question}`;
+    messages.push({
+      role: "user",
+      content: userMessage,
+    });
 
     const message = await anthropic.messages.create({
       model: "claude-sonnet-4-20250514",
       max_tokens: 2048,
       system: SYSTEM_PROMPT,
-      messages: [
-        {
-          role: "user",
-          content: userMessage,
-        },
-      ],
+      messages,
     });
 
     const response =
