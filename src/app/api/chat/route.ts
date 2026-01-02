@@ -18,10 +18,61 @@ Règles :
 Exemples :
 - "étouffement" → "obstruction voies aériennes corps étranger désobstruction"
 - "malaise cardiaque" → "douleur thoracique arrêt cardiaque RCP DAE"
-- "saignement" → "hémorragie externe compression plaie"
+- "saignement" → "hémorragie externe compression plaie pansement compressif garrot"
 - "brûlure" → "brûlure thermique chimique refroidissement"
 - "fracture" → "traumatisme osseux immobilisation attelle"
 - "inconscient" → "perte connaissance PLS libération voies aériennes"`;
+
+const SYSTEM_PROMPT = `Tu es SecouristIA, un assistant spécialisé dans les référentiels de secourisme français (PSE1, PSE2, PSC1, SST).
+
+## RÈGLE ABSOLUE - ZÉRO HALLUCINATION
+
+⚠️ Tu ne dois JAMAIS inventer, ajouter ou déduire des informations qui ne sont PAS EXPLICITEMENT écrites dans le contexte fourni.
+
+INTERDIT :
+- Ajouter des techniques non mentionnées (ex: "points de compression" si non dans le contexte)
+- Interpréter ou extrapoler au-delà du texte exact
+- Utiliser tes connaissances générales sur le secourisme
+- Dire "il est recommandé de..." si ce n'est pas écrit mot pour mot
+
+OBLIGATOIRE :
+- Citer UNIQUEMENT ce qui est écrit dans les extraits fournis
+- Si une info manque, dire "Cette information n'apparaît pas dans les extraits consultés"
+- Reformuler pour clarifier, mais JAMAIS ajouter de contenu
+
+## FORMAT DE RÉPONSE
+
+Utilise ces blocs pour structurer visuellement :
+
+### Actions À FAIRE (bloc vert) :
+:::do
+- Action 1 (telle qu'écrite dans le référentiel)
+- Action 2
+:::
+
+### Actions À NE PAS FAIRE (bloc rouge) :
+:::dont
+- Interdit 1 (si mentionné dans le contexte)
+:::
+
+### Points d'ATTENTION (bloc jaune) :
+:::warning
+Point de vigilance mentionné dans le référentiel
+:::
+
+### INFORMATIONS complémentaires (bloc bleu) :
+:::info
+- Information additionnelle du contexte
+:::
+
+## RÈGLES DE FORMAT :
+1. Commence par une phrase d'introduction courte (1-2 lignes)
+2. Utilise les blocs colorés pour le contenu principal
+3. Ordre recommandé : :::do → :::dont → :::warning → :::info
+4. Chaque bloc contient une liste (- item)
+5. NE PAS mentionner les sources (affichées automatiquement)
+
+Tu réponds en français, de manière claire et structurée.`;
 
 interface DocumentMatch {
   id: number;
@@ -31,88 +82,6 @@ interface DocumentMatch {
   fiche_ref?: string;
 }
 
-interface ParsedFiche {
-  ref: string;
-  type: "AC" | "FT" | "PR" | "unknown";
-  typeName: string;
-  title: string;
-  date: string;
-  level: string;
-  content: string;
-  source: string;
-}
-
-// Parser une fiche pour extraire les métadonnées
-function parseFiche(doc: DocumentMatch): ParsedFiche {
-  const content = doc.content;
-  const firstLine = content.split("\n")[0];
-
-  // Format: "[05PR08 / 12-2022] PSE① Hémorragie externe"
-  const headerMatch = firstLine.match(/\[([^\]]+)\]\s*(PSE[①②]?|PSC[①]?|SST)?\s*(.+)?/i);
-
-  let ref = doc.fiche_ref || "";
-  let date = "";
-  let level = "";
-  let title = "";
-
-  if (headerMatch) {
-    const refPart = headerMatch[1]; // "05PR08 / 12-2022"
-    const refMatch = refPart.match(/(\d{2}[A-Z]{2}\d{2})\s*\/?\s*(\d{2}-\d{4})?/);
-    if (refMatch) {
-      ref = refMatch[1];
-      date = refMatch[2] || "";
-    }
-    level = headerMatch[2] || "";
-    title = headerMatch[3]?.trim() || "";
-  }
-
-  // Nettoyer le titre (enlever les underscores et numéros de page)
-  title = title
-    .replace(/_+/g, " ")
-    .replace(/\s+\d+\s*$/, "")
-    .replace(/\s+/g, " ")
-    .trim();
-
-  // Déterminer le type de fiche
-  let type: "AC" | "FT" | "PR" | "unknown" = "unknown";
-  let typeName = "Document";
-
-  const typeMatch = ref.match(/\d{2}([A-Z]{2})\d{2}/);
-  if (typeMatch) {
-    const typeCode = typeMatch[1];
-    switch (typeCode) {
-      case "AC":
-        type = "AC";
-        typeName = "Connaissance";
-        break;
-      case "FT":
-        type = "FT";
-        typeName = "Fiche Technique";
-        break;
-      case "PR":
-        type = "PR";
-        typeName = "Procédure";
-        break;
-    }
-  }
-
-  // Nettoyer le contenu (enlever la première ligne header)
-  const lines = content.split("\n");
-  const cleanContent = lines.slice(1).join("\n").trim();
-
-  return {
-    ref,
-    type,
-    typeName,
-    title: title || "Document",
-    date,
-    level: level.replace(/[①②]/g, (m) => m === "①" ? "1" : "2"),
-    content: cleanContent,
-    source: doc.source,
-  };
-}
-
-// Extraire le titre du document pour vérification de pertinence
 function extractDocumentTitle(content: string): string {
   const firstLine = content.split("\n")[0].toLowerCase();
   const match = firstLine.match(/pse[①②]?\s+(.+)/i);
@@ -139,7 +108,6 @@ async function reformulateQuery(question: string): Promise<string> {
 
 async function searchDocuments(query: string, originalQuery: string, sourceFilter?: string): Promise<DocumentMatch[]> {
   try {
-    // Extraire les mots-clés
     const queryWords = query.toLowerCase().split(/\s+/).filter(w => w.length > 2);
     const originalWords = originalQuery.toLowerCase().split(/\s+/).filter(w => w.length > 2);
     const allKeywords = Array.from(new Set([...queryWords, ...originalWords]));
@@ -148,15 +116,15 @@ async function searchDocuments(query: string, originalQuery: string, sourceFilte
     const embedding = await generateEmbedding(query);
     const { data: vectorResults, error: vectorError } = await supabase.rpc("match_documents", {
       query_embedding: embedding,
-      match_threshold: 0.20,
-      match_count: 10,
+      match_threshold: 0.18,
+      match_count: 12,
     });
 
     if (vectorError) {
       console.error("Erreur recherche vectorielle:", vectorError);
     }
 
-    // 2. RECHERCHE TEXTUELLE par mots-clés
+    // 2. RECHERCHE TEXTUELLE
     const stopWords = ["quoi", "que", "faire", "comment", "quel", "quelle", "est", "sont", "cas", "pour", "dans", "avec", "sans", "lors", "une", "qui", "les", "des", "aux", "tenir", "face", "conduite"];
     const keyWords = originalQuery
       .toLowerCase()
@@ -169,7 +137,6 @@ async function searchDocuments(query: string, originalQuery: string, sourceFilte
         .from("documents")
         .select("id, content, source, fiche_ref");
 
-      // Chercher les documents qui contiennent les mots-clés principaux
       for (const word of keyWords.slice(0, 2)) {
         exactQuery = exactQuery.ilike("content", `%${word}%`);
       }
@@ -184,7 +151,7 @@ async function searchDocuments(query: string, originalQuery: string, sourceFilte
         exactResults = exactData.map(doc => {
           const contentLower = doc.content.toLowerCase();
           const matchCount = keyWords.filter(k => contentLower.includes(k)).length;
-          return { ...doc, similarity: 0.7 + (matchCount / keyWords.length) * 0.25 };
+          return { ...doc, similarity: 0.75 + (matchCount / keyWords.length) * 0.2 };
         });
       }
     }
@@ -200,7 +167,6 @@ async function searchDocuments(query: string, originalQuery: string, sourceFilte
       if (!seen.has(doc.id)) {
         seen.add(doc.id);
 
-        // Vérifier pertinence par titre
         const docTitle = extractDocumentTitle(doc.content);
         const isOnTopic = relevanceKeywords.some(k => docTitle.includes(k));
 
@@ -212,20 +178,33 @@ async function searchDocuments(query: string, originalQuery: string, sourceFilte
       }
     }
 
-    // Filtrer par source
     if (sourceFilter) {
       combinedResults = combinedResults.filter(doc =>
         doc.source.toUpperCase().includes(sourceFilter.toUpperCase())
       );
     }
 
-    // Trier et limiter
     combinedResults.sort((a, b) => b.similarity - a.similarity);
-    return combinedResults.slice(0, 5);
+    return combinedResults.slice(0, 6);
   } catch (err) {
     console.error("Erreur recherche:", err);
     return [];
   }
+}
+
+function buildContextFromDocuments(documents: DocumentMatch[]): string {
+  if (documents.length === 0) {
+    return "Aucun document pertinent trouvé dans la base de connaissances.";
+  }
+
+  const context = documents
+    .map((doc, i) => {
+      const ficheRef = doc.fiche_ref ? `[${doc.fiche_ref}]` : "";
+      return `[Extrait ${i + 1} ${ficheRef} - ${doc.source}]\n${doc.content}`;
+    })
+    .join("\n\n---\n\n");
+
+  return `Voici les extraits des référentiels de secourisme. UTILISE UNIQUEMENT ces informations pour répondre :\n\n${context}`;
 }
 
 export async function POST(request: NextRequest) {
@@ -239,38 +218,40 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 1. Reformuler la question en termes techniques
+    // 1. Reformuler la question
     const technicalQuery = await reformulateQuery(question);
 
-    // 2. Rechercher les documents pertinents
+    // 2. Rechercher les documents
     const documents = await searchDocuments(technicalQuery, question, sourceFilter);
 
-    if (documents.length === 0) {
-      return NextResponse.json({
-        fiches: [],
-        message: "Aucun document trouvé pour cette recherche. Essayez avec d'autres termes.",
-      });
-    }
+    // 3. Construire le contexte
+    const context = buildContextFromDocuments(documents);
 
-    // 3. Parser les fiches pour extraction structurée
-    const fiches = documents.map(doc => parseFiche(doc));
+    // 4. Générer la réponse avec Claude
+    const userMessage = `${context}\n\n---\n\nQuestion : ${question}`;
 
-    // 4. Dédupliquer par référence (garder la première occurrence)
-    const seenRefs = new Set<string>();
-    const uniqueFiches = fiches.filter(f => {
-      if (f.ref && seenRefs.has(f.ref)) return false;
-      if (f.ref) seenRefs.add(f.ref);
-      return true;
+    const message = await anthropic.messages.create({
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 2048,
+      system: SYSTEM_PROMPT,
+      messages: [{ role: "user", content: userMessage }],
     });
 
+    const response = message.content[0].type === "text" ? message.content[0].text : "";
+
+    // 5. Extraire les références
+    const sources = Array.from(new Set(documents.map(d => d.source)));
+    const ficheRefs = Array.from(new Set(documents.map(d => d.fiche_ref).filter(Boolean))) as string[];
+
     return NextResponse.json({
-      fiches: uniqueFiches,
-      query: technicalQuery,
+      response,
+      sources,
+      ficheRefs,
     });
   } catch (error) {
     console.error("Erreur API:", error);
     return NextResponse.json(
-      { error: "Erreur lors de la recherche" },
+      { error: "Erreur lors de la communication avec l'assistant" },
       { status: 500 }
     );
   }
