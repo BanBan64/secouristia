@@ -115,6 +115,7 @@ interface DocumentMatch {
   content: string;
   source: string;
   similarity: number;
+  fiche_ref?: string;
 }
 
 async function reformulateQuery(question: string): Promise<string> {
@@ -199,7 +200,7 @@ async function searchDocuments(query: string, originalQuery: string, sourceFilte
       // Chercher les documents qui contiennent TOUS les mots-clés
       let exactQuery = supabase
         .from("documents")
-        .select("id, content, source");
+        .select("id, content, source, fiche_ref");
 
       // Ajouter un filtre ILIKE pour chaque mot-clé (AND implicite)
       for (const word of keyWords.slice(0, 3)) { // Max 3 mots pour performance
@@ -236,7 +237,7 @@ async function searchDocuments(query: string, originalQuery: string, sourceFilte
     if (searchTerms.length > 0) {
       let textQuery = supabase
         .from("documents")
-        .select("id, content, source");
+        .select("id, content, source, fiche_ref");
 
       if (sourceFilter) {
         textQuery = textQuery.ilike("source", `%${sourceFilter}%`);
@@ -264,7 +265,7 @@ async function searchDocuments(query: string, originalQuery: string, sourceFilte
     if (isSpinalQuestion) {
       const { data: spinalData, error: spinalError } = await supabase
         .from("documents")
-        .select("id, content, source")
+        .select("id, content, source, fiche_ref")
         .or("fiche_ref.eq.08PR06,content.ilike.%65 ans%,content.ilike.%haut risque%")
         .limit(5);
 
@@ -387,12 +388,14 @@ export async function POST(request: NextRequest) {
     const response =
       message.content[0].type === "text" ? message.content[0].text : "";
 
-    // Retourner la réponse avec les sources utilisées
+    // Retourner la réponse avec les sources et références de fiches utilisées
     const sources = Array.from(new Set(documents.map((d) => d.source)));
+    const ficheRefs = Array.from(new Set(documents.map((d) => d.fiche_ref).filter(Boolean))) as string[];
 
     return NextResponse.json({
       response,
       sources,
+      ficheRefs,
     });
   } catch (error) {
     console.error("Erreur API Claude:", error);

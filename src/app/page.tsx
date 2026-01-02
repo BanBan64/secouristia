@@ -10,6 +10,7 @@ interface Message {
   role: "user" | "assistant";
   content: string;
   sources?: string[];
+  ficheRefs?: string[];
 }
 
 const filterConfig: { value: SourceFilter; label: string; bgColor: string }[] = [
@@ -147,6 +148,7 @@ export default function Home() {
         role: "assistant",
         content: data.response,
         sources: data.sources || [],
+        ficheRefs: data.ficheRefs || [],
       };
       setMessages((prev) => [...prev, assistantMessage]);
     } catch (err) {
@@ -358,19 +360,38 @@ export default function Home() {
                         {transformMarkdownToBlocks(msg.content)}
                       </ReactMarkdown>
                     </div>
-                    {msg.sources && msg.sources.length > 0 && (
+                    {((msg.ficheRefs && msg.ficheRefs.length > 0) || (msg.sources && msg.sources.length > 0)) && (
                       <div className="mt-4 pt-4 border-t border-[var(--border-color)]">
-                        <p className="text-xs font-medium text-[var(--text-secondary)] mb-2">Sources :</p>
-                        <div className="flex flex-wrap gap-2">
-                          {msg.sources.map((source) => (
-                            <span
-                              key={source}
-                              className="inline-flex items-center rounded-full bg-gray-100 dark:bg-gray-700 px-3 py-1 text-xs text-[var(--text-secondary)]"
-                            >
-                              {source}
-                            </span>
-                          ))}
-                        </div>
+                        {msg.ficheRefs && msg.ficheRefs.length > 0 && (
+                          <div className="mb-2">
+                            <p className="text-xs font-medium text-[var(--text-secondary)] mb-1">Fiches de référence :</p>
+                            <div className="flex flex-wrap gap-2">
+                              {msg.ficheRefs.map((ref) => (
+                                <span
+                                  key={ref}
+                                  className="inline-flex items-center rounded-full bg-blue-100 dark:bg-blue-900/30 px-3 py-1 text-xs font-medium text-blue-700 dark:text-blue-300"
+                                >
+                                  {ref}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {msg.sources && msg.sources.length > 0 && (
+                          <div>
+                            <p className="text-xs font-medium text-[var(--text-secondary)] mb-1">Sources :</p>
+                            <div className="flex flex-wrap gap-2">
+                              {msg.sources.map((source) => (
+                                <span
+                                  key={source}
+                                  className="inline-flex items-center rounded-full bg-gray-100 dark:bg-gray-700 px-3 py-1 text-xs text-[var(--text-secondary)]"
+                                >
+                                  {source}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -403,6 +424,20 @@ export default function Home() {
             </div>
           </div>
         )}
+
+        {/* Disclaimer */}
+        <div className="mt-8 pt-6 border-t border-[var(--border-color)]">
+          <div className="flex items-start gap-2 text-xs text-[var(--text-secondary)]">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 flex-shrink-0 mt-0.5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <p>
+              <strong className="text-amber-600 dark:text-amber-400">Avertissement :</strong> SecouristIA est un outil d'aide à la révision.
+              Les réponses peuvent contenir des erreurs. Vérifiez toujours avec les référentiels officiels (PSE, PSC, SST)
+              avant toute intervention réelle.
+            </p>
+          </div>
+        </div>
       </div>
     </main>
   );
