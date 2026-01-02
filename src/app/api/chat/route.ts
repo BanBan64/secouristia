@@ -135,12 +135,25 @@ async function reformulateQuery(question: string): Promise<string> {
   }
 }
 
+// Détecter si la question concerne l'immobilisation/rachis
+function isSpinalTraumaQuestion(query: string): boolean {
+  const keywords = ["immobilis", "rachis", "colonne", "dos", "cou", "vertébr", "scooter", "moto", "voiture", "accident", "chute", "collision", "percuté"];
+  const lowerQuery = query.toLowerCase();
+  return keywords.some(k => lowerQuery.includes(k));
+}
+
 async function searchDocuments(query: string, originalQuery: string, sourceFilter?: string): Promise<DocumentMatch[]> {
   try {
     console.log("\n=== DEBUG RAG HYBRIDE ===");
     console.log("Query technique:", query);
     console.log("Query originale:", originalQuery);
     console.log("Source filter:", sourceFilter || "all");
+
+    // Si question sur traumatisme/immobilisation, forcer l'inclusion de la fiche 08PR06
+    const isSpinalQuestion = isSpinalTraumaQuestion(originalQuery);
+    if (isSpinalQuestion) {
+      console.log("🦴 Question sur traumatisme rachidien détectée - inclusion forcée de 08PR06");
+    }
 
     // Extraire les mots-clés des DEUX requêtes
     const queryWords = query.toLowerCase().split(/\s+/).filter(w => w.length > 2);
@@ -239,8 +252,26 @@ async function searchDocuments(query: string, originalQuery: string, sourceFilte
     }
     console.log(`Recherche textuelle: ${textResults.length} résultats`);
 
-    // 4. COMBINER ET DÉDUPLIQUER (phrase exacte en premier!)
-    const allResults = [...exactPhraseResults, ...(vectorResults || []), ...textResults];
+    // 3.5 RECHERCHE FORCÉE pour les questions sur le rachis
+    let spinalResults: DocumentMatch[] = [];
+    if (isSpinalQuestion) {
+      const { data: spinalData, error: spinalError } = await supabase
+        .from("documents")
+        .select("id, content, source")
+        .or("fiche_ref.eq.08PR06,content.ilike.%65 ans%,content.ilike.%haut risque%")
+        .limit(5);
+
+      if (!spinalError && spinalData) {
+        spinalResults = spinalData.map(doc => ({
+          ...doc,
+          similarity: 0.95, // Score élevé pour priorité
+        }));
+        console.log(`🦴 Recherche rachis forcée: ${spinalResults.length} résultats`);
+      }
+    }
+
+    // 4. COMBINER ET DÉDUPLIQUER (rachis forcé en premier!)
+    const allResults = [...spinalResults, ...exactPhraseResults, ...(vectorResults || []), ...textResults];
     const seen = new Set<number>();
     let combinedResults: DocumentMatch[] = [];
 
