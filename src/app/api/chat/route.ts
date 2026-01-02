@@ -58,7 +58,14 @@ Quand l'utilisateur décrit une SITUATION spécifique (victime, symptômes, circ
    - Justifie en citant les critères qui s'appliquent
    - Ex: "OUI, immobilisation nécessaire car : traumatisme à haut risque (collision 2 roues) + âge > 65 ans"
 
-4. **Critères importants à rechercher dans le contexte** :
+4. **STRICTEMENT RESPECTER LES SEUILS** :
+   - Si le critère dit "> 40 km/h", alors 30 km/h = NON (pas d'interprétation)
+   - Si le critère dit "collision 2 roues", une voiture = NON
+   - Ne jamais ajouter "peut constituer" ou "pourrait être" - SOIT ça correspond au critère, SOIT non
+   - Applique les critères EXACTEMENT comme écrits dans les référentiels
+   - En cas de doute sur un critère, indique-le clairement plutôt que d'interpréter
+
+5. **Critères importants à rechercher dans le contexte** :
    - "traumatisme à haut risque" / "haut risque du rachis"
    - "plus de 65 ans" / "> 65 ans"
    - "antécédents à risque"
