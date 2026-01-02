@@ -66,8 +66,12 @@ function parseFiche(doc: DocumentMatch): ParsedFiche {
     title = headerMatch[3]?.trim() || "";
   }
 
-  // Nettoyer le titre (enlever les underscores)
-  title = title.replace(/_+/g, "").trim();
+  // Nettoyer le titre (enlever les underscores et numéros de page)
+  title = title
+    .replace(/_+/g, " ")
+    .replace(/\s+\d+\s*$/, "")
+    .replace(/\s+/g, " ")
+    .trim();
 
   // Déterminer le type de fiche
   let type: "AC" | "FT" | "PR" | "unknown" = "unknown";
