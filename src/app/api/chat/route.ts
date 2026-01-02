@@ -130,6 +130,22 @@ interface DocumentMatch {
   fiche_ref?: string;
 }
 
+// Extraire le titre du document (première ligne avec le nom de la fiche)
+function extractDocumentTitle(content: string): string {
+  const firstLine = content.split("\n")[0].toLowerCase();
+  // Format: "[07PR13 / 09-2019] PSE② Piqûres et morsures"
+  const match = firstLine.match(/pse[①②]?\s+(.+)/i);
+  return match ? match[1].trim() : firstLine;
+}
+
+// Vérifier si le document est pertinent pour la requête
+function isDocumentRelevant(content: string, queryKeywords: string[]): boolean {
+  const title = extractDocumentTitle(content);
+  // Au moins un mot-clé principal doit être dans le titre
+  const mainKeywords = queryKeywords.filter(k => k.length > 4);
+  return mainKeywords.some(k => title.includes(k));
+}
+
 async function reformulateQuery(question: string): Promise<string> {
   try {
     console.log("Reformulation de la question...");
@@ -295,9 +311,23 @@ async function searchDocuments(query: string, originalQuery: string, sourceFilte
     const seen = new Set<number>();
     let combinedResults: DocumentMatch[] = [];
 
+    // Extraire les mots-clés de la question originale pour vérifier la pertinence
+    const relevanceKeywords = originalQuery.toLowerCase().split(/\s+/).filter(w => w.length > 4);
+
     for (const doc of allResults) {
       if (!seen.has(doc.id)) {
         seen.add(doc.id);
+
+        // Vérifier si le document est sur le bon sujet
+        const docTitle = extractDocumentTitle(doc.content);
+        const isOnTopic = relevanceKeywords.some(k => docTitle.includes(k));
+
+        // Pénaliser fortement les documents hors-sujet
+        if (!isOnTopic && doc.similarity < 0.95) {
+          doc.similarity *= 0.3; // Réduire le score de 70%
+          console.log(`  ⚠️ Hors-sujet: "${docTitle.substring(0, 40)}..." score réduit`);
+        }
+
         combinedResults.push(doc);
       }
     }
